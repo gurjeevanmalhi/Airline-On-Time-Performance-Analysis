@@ -38,8 +38,8 @@ month,
 count(*) as total_flights,
 count(*) - lag(count(*)) over(order by month) as variance
 from flights
-group by month
-order by month asc;
+group by 1
+order by 1 asc;
 
 -- 12. What percentage of flights experienced a departure delay in 2015? Among those, what was the average delay time (in minutes)?  
 -- (Use COUNT + AVG with a WHERE clause on `departure_delay > 0`.)
@@ -54,6 +54,18 @@ from flights;
 
 -- 14. How many flights were cancelled in 2015? What % were due to weather vs. the airline?  
 -- (Filter on `cancelled = 1`; GROUP BY `cancellation_reason`.)
+
+select
+	c.description,
+	count(*) as total_cancellations_per,
+	sum(count(*)) over() as total_cancellations_overall,
+	(count(*) / sum(count(*)) over()) * 100 as pct_per
+from flights f 
+left join cancellation_codes c
+on f.cancellation_reason = c.code
+where f.cancelled = True
+group by 1
+order by 2;
 
 -- 15. Which airlines seem to be most and least reliable in terms of on-time departure?  
 -- (Aggregate delay counts per airline; order by average delay.)
@@ -72,6 +84,10 @@ from flights;
 
 -- 20. Is there a correlation between flight distance and arrival delay?  
 -- (Use correlation functions like `corr(distance, arrival_delay)`.)
+
+select corr(distance, arrival_delay)
+from flights
+where arrival_delay is not null;
 
 -- 21. How do delay reasons vary across airlines—do some experience more delays due to late aircraft, others due to weather?  
 -- (GROUP BY airline; SUM delay categories.)
