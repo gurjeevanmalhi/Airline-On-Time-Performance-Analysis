@@ -92,5 +92,6 @@ SELECT
     weather_delay::INT
 FROM flights_staging;
 
-
+-- Dropped staging table
+DROP TABLE IF EXISTS flights_staging;
 
