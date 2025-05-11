@@ -1,8 +1,8 @@
 -- Business Problems
 
 -- 1. Which airlines demonstrated the highest operational efficiency in 2015, and how did their on-time performance compare across quarters throughout the year?  
--- (Use CTEs to segment data by region and time, window functions to rank performance.)
 
+-- Finds total on time or early flights per airline in each quarter
 with on_time_performance as (
 	select
 		case
@@ -18,65 +18,57 @@ with on_time_performance as (
 	inner join airline a
 	on f.airline_code = a.iata_code
 	group by 1,2
+),
+-- Finds on time % and ranks each airline accordingly per quarter
+ranked as(
+	select
+		quarter,
+		airline_name,
+		not_delayed * 1.0 / total_flights * 100 as on_time_pct,
+		rank() over(partition by quarter order by not_delayed * 1.0 / total_flights * 100 desc) as rank
+	from on_time_performance
+	order by quarter, rank asc
 )
-select
-	quarter,
-	airline_name,
-	not_delayed * 1.0 / total_flights * 100 as on_time_pct,
-	rank() over(partition by quarter order by not_delayed * 1.0 / total_flights * 100 desc) as rank
-from on_time_performance
-order by quarter, rank asc;
+-- Returns the best on time performing airline in each quarter
+select *
+from ranked
+where rank = 1;
 
--- 2. What are the top 10 most heavily trafficked routes, and how do delay patterns and cancellation rates on these routes impact customer experience and airline reliability?  
--- (Use ROW_NUMBER or RANK, aggregate delay metrics by route.)
+-- Answer:
+-- Alaska Airlines had the best on time performance in Q1. Delta Airlines led on time performance for the remainder of the year.
 
--- 3. How do average arrival delays vary by day of week and month, and what patterns or seasonality can be identified to inform future scheduling strategies?  
--- (GROUP BY with aggregates; CTEs to prep calendar metrics.)
+-- 2. How much do arrival and departure delays vary across different airports compared to the national average?
 
--- 4. What are the key drivers of flight cancellations across the industry?
--- (Use JOINs on cancellation codes, filter with CASE WHEN logic.)
+with airport_stddev as(
+	select
+		a2.airport_name as origin_airport,
+		stddev(f.departure_delay) as stddev_departure_delay_per_airport,
+		a.airport_name as destination_airport,
+		stddev(f.arrival_delay) as stddev_arrival_delay_per_airport
+	from flights f
+	inner join airport a2
+	on f.origin_airport = a2.iata_code
+	inner join airport a 
+	on f.destination_airport = a.iata_code
+	group by 1,3
+),
+national_stddev as(
+	select
+		stddev(departure_delay) as natl_stddev_departure_delay,
+		avg(arrival_delay) as natl_stddev_arrival_delay
+	from flights
+)
+select 
+	ad.origin_airport,
+	ad.stddev_departure_delay_per_airport,
+	nd.natl_stddev_departure_delay,
+	ad.destination_airport,
+	ad.stddev_arrival_delay_per_airport,
+	nd.natl_stddev_arrival_delay
+from airport_stddev ad
+cross join national_stddev nd;
 
-select
-	c.description,
-	count(cancelled) as total_cancelled
-from flights f
-inner join cancellation_codes c
-on f.cancellation_reason = c.code
-inner join airline a
-on f.airline_code = a.iata_code
-where f.cancelled = 'True'
-group by 1
-order by 2 desc;
-
--- 5. Which airports consistently experience high weather-related delays? 
--- (Aggregate weather delay time by airport; filter and rank.)
-
-select
-	a.airport_name,
-	a.city || ', ' || a.state as location,
-	sum(f.weather_delay) as total_weather_delay
-from flights f
-left join airport a
-on f.origin_airport = a.iata_code
-where a.airport_name is not null
-group by airport_name,location
-order by 3 desc
-limit 10;
-
--- 6. How have airlines performed in terms of delay trends across different time periods, and which ones show continuous improvement or decline over the year?  
--- (Use window functions (LAG) to calculate trend deltas.)
-
--- 7. Where are systemic inefficiencies occurring in ground operations (taxi-in/out), and how do they affect turnaround time at the busiest airports?  
--- (Combine taxi_in/out with total delay; rank by airport volume.)
-
--- 8. How does aircraft reuse (tail numbers) contribute to compounding delays, and which carriers are most affected by late aircraft propagation?  
--- (Use window functions (LAG or LEAD) to trace delay propagation by tail_number.)
-
--- 9. Which origin airports contribute most to delays at major hub destinations, and what operational changes could reduce downstream delay impact?  
--- (Join flights by origin-destination; sum downstream arrival_delay.)
-
--- 10. How much cumulative delay time is each airline responsible for, and what portion is due to controllable vs. uncontrollable reasons (e.g., airline vs. weather)?  
--- (Use CASE WHEN logic to segment delay categories, aggregate per airline.)
+-- 3. How much cumulative delay time is each airline responsible for, and what portion is due to controllable vs. uncontrollable reasons (e.g., airline vs. weather)?  
 
 -- Assumed for controllable: air system delay, airline delay
 -- Assumed for uncontrollable: security delay, weather delay, late aircraft delay
@@ -98,20 +90,41 @@ select
 from delayed_categorized
 group by 1,2,3;
 
--- 11. How does the overall flight volume vary by month? By day of week?  
--- (GROUP BY month, day_of_week; COUNT(*))
+-- 4. How do delay patterns change with longer flights vs shorter flights?
 
--- 12. What percentage of flights experienced a departure delay in 2015? Among those, what was the average delay time (in minutes)?  
--- (Use COUNT + AVG with a WHERE clause on `departure_delay > 0`.)
-
+-- Categorizes flight times into short, medium, and long flights
+with flight_categories as(
+	select
+		case
+			when air_time <= 120 then 'Short'
+			when air_time between 121 and 240 then 'Medium'
+			else 'Long'
+		end as flight_type,
+	arrival_delay
+	from flights
+)
+-- Finds avg delay, standard deviation, and percentage of delayed flights per flight type
 select
-(count(*) filter(where departure_delay > 0))::decimal/ count(*) as delayed_flight_pct,
-avg(departure_delay) filter(where departure_delay > 0) as avg_delay
-from flights;
+	flight_type,
+	count(*) as total_flights,
+	avg(arrival_delay) as avg_arrival_delay,
+	stddev(arrival_delay) as delay_stddev,
+	100.0 * sum(case when arrival_delay > 0 then 1 else 0 end)/ count(*) as pct_delayed
+from flight_categories
+group by 1
+order by 2 desc;
 
--- 13. How does the % of delayed flights vary throughout the year? What about for flights leaving from Boston (BOS) specifically?  
--- (Use CTE to calculate monthly delay %; add filter for BOS.)
+/*
+Answer:
+The average delays for these flight groups range from approximately 2 to 5 minutes. However, the significantly
+higher standard deviation indicates considerable variability in the delays, suggesting the presence of numerous
+instances with substantial outliers and longer delays. These outliers likely result from factors
+such as severe weather conditions or exceptional circumstances that cause significant delays on certain flights.
+ */
 
+-- 5. How does the % of delayed flights vary throughout the year? What about for flights leaving from Boston (BOS) specifically?  
+
+-- Finds total and delayed flights for Boston and all other airports
 with monthly_flights as (
 	select
 		month,
@@ -122,6 +135,7 @@ with monthly_flights as (
 	from flights
 	group by month
 ),
+-- Calculates the % of delayed flights for Boston and all other airports
 pct_delayed as(
 	select
 		month,
@@ -130,17 +144,109 @@ pct_delayed as(
 		(all_other_delays * 1.0 / total_other) * 100 as pct_delayed_other
 	from monthly_flights
 )
+-- Finds the variance of delayed flights from Boston vs all other airports
 select
 	*,
 	pct_delayed_boston - pct_delayed_other as boston_vs_all_else
 from pct_delayed;
 
--- 14. How many flights were cancelled in 2015? What % were due to weather vs. the airline?  
--- (Filter on `cancelled = 1`; GROUP BY `cancellation_reason`.)
+/*
+Answer:
+Boston did not have any delayed flights in October. Overall, Boston exhibited better on-time performance
+compared to other airports for most months, except for February, August, and September. Notably,
+February saw the highest proportion of delays for flights departing from Boston.
+*/
+
+-- 6. Which routes have the highest flight volume, and what are the top five based on total flights?
+
+select
+	-- combines origin and destination locations to assign as route
+	a.city || ', ' || a.state || ' - ' || a2.city || ', ' || a2.state as route, 
+	count(*) as total_flights
+from flights f
+inner join airport a
+on f.origin_airport = a.iata_code
+inner join airport a2 
+on f.destination_airport = a2.iata_code
+group by 1
+order by 2 desc
+limit 5;
+
+-- Answer: SF-LA, LA-SF, NY-CHI, CHI-NY, BOS-NY 
+
+-- 7. Which five cities serve as the most popular hubs based on flight frequency?
+
+select
+	city,
+	count(*)
+from(
+	select a.city
+	from flights f
+	inner join airport a
+	on f.origin_airport = a.iata_code
+	union all 
+	select a2.city
+	from flights f
+	inner join airport a2
+	on f.destination_airport = a2.iata_code
+)
+group by 1
+order by 2 desc
+limit 5;
+
+-- Answer: Chicago, Atlanta, Dallas-Fort Worth, Denver
+
+-- 8. What are the key drivers of flight cancellations across the industry?
+
+select
+	c.description,
+	count(f.cancelled) as total_cancelled_per,
+	100 * count(f.cancelled) / sum(count(f.cancelled)) over() as pct_of_total
+from flights f
+inner join cancellation_codes c
+on f.cancellation_reason = c.code
+inner join airline a
+on f.airline_code = a.iata_code
+where f.cancelled = 'True'
+group by 1
+order by 3 desc;
+
+/*
+Answer:
+Weather is the leading cause of flight cancellations, followed by issues related to the
+airline or carrier, the national air system, with security concerns contributing the least.
+*/
+
+-- 9. Which airports consistently experience high weather-related delays? 
+
+select
+	a.airport_name,
+	sum(f.weather_delay) as total_weather_delay
+from flights f
+left join airport a
+on f.origin_airport = a.iata_code
+where a.airport_name is not null
+group by airport_name
+order by 2 desc
+limit 5;
+
+-- Answer: O'Hare, Hartsfield-Jackson, Dallas-Forth Worth, Orlando Intl, JFK
+
+-- 10. What percentage of flights experienced a departure delay in 2015? Among those, what was the average delay time (in minutes)?  
+
+select
+100 * (count(*) filter(where departure_delay > 0))::decimal/ count(*) as delayed_flight_pct,
+avg(departure_delay) filter(where departure_delay > 0) as avg_delay
+from flights;
+
+-- Answer: 36% of flights experienced a delay for an average of 32 minutes.
+
+-- 11. How many flights were cancelled in 2015? What % were due to weather vs. the airline?  
 
 select
 	c.description,
 	count(*) as total_cancellations_per,
+	sum(count(*)) over() as total_cancellations_2015,
 	(count(*) / sum(count(*)) over()) * 100 as pct_per
 from flights f 
 left join cancellation_codes c
@@ -149,8 +255,12 @@ where f.cancelled = True
 group by 1
 order by 2;
 
--- 15. Which airlines seem to be most and least reliable in terms of on-time departure?  
--- (Aggregate delay counts per airline; order by average delay.)
+/*
+Answer: 89,884 flights were cancelled in 2015. Weather accounted for 54% of delays,
+followed by airline or carrier related factors which contributed to 28%
+*/
+
+-- 12. Which airlines seem to be most and least reliable in terms of on-time departure?  
 
 select
 	a.airline_name,
@@ -162,8 +272,9 @@ where departure_delay > 0
 group by 1
 order by 2 asc;
 
--- 16. What percentage of flights were delayed, cancelled, or diverted overall and per airline?  
--- (Use CASE WHEN to tag status, then COUNT + GROUP BY airline.)
+-- Answer: Hawaiian Airlines were the most reliable airline with Frontier being the least.
+
+-- 13. What percentage of flights were delayed, cancelled, or diverted overall and per airline?  
 
 with categorized as (
 	select
@@ -184,14 +295,7 @@ select
 	total_diverted * 1.0 / total_flights * 100 as pct_diverted
 from categorized;
 
--- 17. Which airports had the highest average arrival and departure delays, and how do they compare nationally?  
--- (GROUP BY airport; AVG(arrival_delay), AVG(departure_delay).)
-
--- 18. What are the top 5 airlines with the best and worst average arrival delay times?  
--- (RANK or LIMIT by AVG(arrival_delay) per airline.)
-
--- 19. Which flight routes have the highest frequency of weather-related delays?  
--- (Filter by `weather_delay > 0`, GROUP BY origin + destination.)
+-- 14. Which flight routes have the highest frequency of weather-related delays?  
 
 select
 	a.city || ', ' || a.state || ' - ' || a2.city || ', ' || a2.state as route,
@@ -203,26 +307,18 @@ inner join airport a2
 on f.destination_airport = a2.iata_code
 group by 1
 order by 2 desc
-limit 10;
+limit 3;
 
--- 20. Is there a correlation between flight distance and arrival delay?  
--- (Use correlation functions like `corr(distance, arrival_delay)`.)
+-- Answer: CHI-NY, ATL-NY, CHI- LA
+
+-- 15. Is there a correlation between flight distance and arrival delay?  
 
 select corr(distance, arrival_delay)
 from flights
 where arrival_delay is not null;
 
--- 21. How do delay reasons vary across airlines—do some experience more delays due to late aircraft, others due to weather?  
--- (GROUP BY airline; SUM delay categories.)
+-- Answer: Result of -0.02 indicates virtually no correlation between flight distance and arrival delay.
 
--- 22. What is the average delay for each airline by day of the week?  
--- (GROUP BY airline, day_of_week; use AVG(arrival_delay).)
 
--- 23. Which flights had the longest taxi-in and taxi-out times, and how does this affect overall delays?  
--- (ORDER BY taxi_in + taxi_out DESC; compare to delay.)
 
--- 24. Which months show the highest rate of cancellations and for what reasons?  
--- (GROUP BY month + cancellation_reason; COUNT + PERCENT.)
 
--- 25. What is the distribution of total delays by delay category (air system, security, airline, etc.) across all flights?  
--- (SUM each delay column; consider visualization like stacked bars.)
