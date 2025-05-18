@@ -125,29 +125,35 @@ where description in(
 	)
 order by description;
 -- Found multiple airports with different codes.
--- Per DOT website, airport can change code over time.
--- We will keep for analysis.
+-- Per DOT website, airport can change codes over time.
+-- Will keep values for analysis.
 
-select
-	code,
-	description,
-	split_part(description,': ',2) as airport
-from airports_staging;
+-- Transforming airport description into respective columns
+ALTER TABLE airports_staging
+ADD COLUMN airport_name VARCHAR(200),
+ADD COLUMN city VARCHAR(200),
+ADD COLUMN region VARCHAR(200);
 
-select 
-	origin_airport_id,
-	code,
-	description,
-	origin_city_market_id,
-	origin,
-	origin_city_name,
-	origin_state,
-	origin_state_name
-from flights_staging f
-inner join airports_staging a
-on f.origin_airport_id = a.code
-limit 10;
+UPDATE airports_staging
+SET
+	airport_name = SUBSTRING(
+		description FROM STRPOS(description, ':') + 2),
+	city = SUBSTRING(
+		description
+		FROM 1 FOR STRPOS(description, ',') -1),
+	region = SUBSTRING(
+		description FROM STRPOS(description, ',') + 2 FOR (STRPOS(description, ':') - STRPOS(description, ',') -2));
 
+UPDATE airports
+SELECT
+	DISTINCT REGION,
+	DEST_STATE_NAME
+FROM AIRPORTS_STAGING A 
+LEFT JOIN FLIGHTS_STAGING F
+ON A.REGION = F.DEST_STATE
+WHERE REGION SIMILAR TO '[A-Z]{2}'
+ORDER BY REGION
 
+select * from airports_staging;
 
 
