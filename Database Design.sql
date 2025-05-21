@@ -339,10 +339,87 @@ FROM markets_staging;
 DROP TABLE IF EXISTS markets_staging;
 
 
+-- World Area Codes
 
 
 
+-- Confirmed 0 nulls
+SELECT
+	count(*) - count(code) as null_codes,
+	count(*) - count(description) as null_descriptions
+from world_areas_staging;
+
+-- Confirmed 0 duplicates
+SELECT 
+	code,
+	description
+FROM world_areas_staging
+group by 1,2
+having count(*) > 1;
+
+-- Confirmed all codes are unique
+SELECT
+	count(*) as total_rows,
+	count(distinct code) as total_unique_codes
+from world_areas_staging;
+
+-- Found range for data type
+select
+	min(code) as min,
+	max(code) as max
+from world_areas_staging;
+
+-- Found range for data type
+select
+	max(length(description)) as max
+from world_areas_staging;
+
+-- Created table for clean data
+create table world_areas(
+	code smallint primary key,
+	area_name VARCHAR(75)
+);
+
+-- Inserted clean data
+INSERT INTO world_areas(code,area_name)
+SELECT 
+	code,
+	description
+FROM world_areas_staging;
+
+-- Dropped staging table
+DROP TABLE IF EXISTS world_areas_staging;
 
 
 
+-- Cancel Codes
 
+
+
+-- No cleaning or transformation necessary
+SELECT *
+FROM cancel_codes_staging;
+
+-- Created table for clean data
+CREATE TABLE cancel_codes(
+	code CHAR(1) primary key,
+	description VARCHAR(25)
+);
+
+-- Inserting clean data
+INSERT INTO cancel_codes
+select
+	code,
+	description
+FROM cancel_codes_staging;
+
+-- Dropped staging table
+DROP TABLE IF EXISTS cancel_codes_staging;
+
+
+-- Flights
+
+
+select * from flights_staging limit 5;
+
+-- DROPPED COLUMNS 
