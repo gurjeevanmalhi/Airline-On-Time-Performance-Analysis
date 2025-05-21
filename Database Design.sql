@@ -15,7 +15,7 @@ CREATE TABLE carriers_staging(
 	description varchar(200)
 );
 
-CREATE TABLE city_markets_staging(
+CREATE TABLE markets_staging(
 	code char(5),
 	description varchar(200)
 );
@@ -89,6 +89,13 @@ CREATE TABLE flights_staging (
   late_aircraft_delay VARCHAR(100)
 );
 
+
+
+-- Data Cleaning, Manipulation, and Transformation
+
+-- Airports 
+
+
 select count(*) 
 from airports_staging;
 
@@ -128,12 +135,13 @@ order by description;
 -- Per DOT website, airport can change codes over time.
 -- Will keep values for analysis.
 
--- Transforming airport description into respective columns
+-- Added new columns for transformation
 ALTER TABLE airports_staging
 ADD COLUMN airport_name VARCHAR(200),
 ADD COLUMN city VARCHAR(200),
 ADD COLUMN region VARCHAR(200);
 
+-- Extracted substrings from description. Inserting into new columns
 UPDATE airports_staging
 SET
 	airport_name = SUBSTRING(
@@ -144,16 +152,197 @@ SET
 	region = SUBSTRING(
 		description FROM STRPOS(description, ',') + 2 FOR (STRPOS(description, ':') - STRPOS(description, ',') -2));
 
-UPDATE airports
-SELECT
-	DISTINCT REGION,
-	DEST_STATE_NAME
-FROM AIRPORTS_STAGING A 
-LEFT JOIN FLIGHTS_STAGING F
-ON A.REGION = F.DEST_STATE
-WHERE REGION SIMILAR TO '[A-Z]{2}'
-ORDER BY REGION
+-- Updated state long name
+UPDATE airports_staging
+SET region = 'Deleware'
+WHERE region = 'DE';
 
-select * from airports_staging;
+-- Updated state long name
+UPDATE airports_staging
+SET region = 'District of Columbia'
+WHERE region = 'DC';
+
+-- Updated state long from flights table
+UPDATE airports_staging a
+SET region = f.dest_state_name
+FROM(
+	SELECT
+		DISTINCT region,
+		dest_state_name
+	FROM airports_staging a
+	LEFT JOIN flights_staging f
+	ON a.region = f.dest_state
+	WHERE region SIMILAR TO '[A-Z]{2}'
+	ORDER BY region
+) f 
+WHERE a.region = f.region
+AND a.region SIMILAR TO '[A-Z]{2}';
+
+-- Dropped description column
+ALTER TABLE airports_staging
+DROP COLUMN description;
+
+
+-- Created Airports table for clean data
+CREATE TABLE airports(
+	code CHAR(5) primary key,
+	airport_name VARCHAR(75),
+	city VARCHAR(50),
+	region VARCHAR(75)
+);
+
+-- Inserted clean data
+INSERT INTO airports(code,airport_name,city,region)
+SELECT
+	code,
+	airport_name,
+	city,
+	region
+FROM airports_staging;
+
+-- Dropped staging table with raw data
+DROP TABLE IF EXISTS airports_staging;
+
+
+
+-- Carriers
+
+
+
+-- Confirmed codes are unique
+SELECT
+	COUNT(*) AS total_rows,
+	COUNT(DISTINCT code) unique_coces
+FROM carriers_staging;
+
+-- Confirmed 0 duplicates
+SELECT
+	code,
+	description
+FROM carriers_staging
+GROUP BY 1,2
+HAVING count(*) > 1;
+
+-- Confirmed 0 NULLs
+SELECT
+	COUNT(*) FILTER(WHERE code is null) as total_null_codes,
+	COUNT(*) FILTER(WHERE description is null) as total_null_description
+FROM carriers_staging;
+
+-- Found code lengths
+SELECT
+	MIN(LENGTH(code)) as min,
+	MAX(LENGTH(code)) as max
+FROM carriers_staging;
+
+-- Found max description length
+SELECT
+	MAX(LENGTH(DESCRIPTION)) AS MAX
+FROM CARRIERS_STAGING;
+
+-- Created table to store validated data
+CREATE TABLE carriers(
+	code VARCHAR(10) primary key,
+	carrier_name VARCHAR(100)	
+);
+
+-- Inserting validated data 
+INSERT INTO carriers(code,carrier_name)
+SELECT
+	code,
+	description
+FROM carriers_staging;
+
+-- Dropped staging table
+DROP TABLE IF EXISTS carriers_staging;
+
+
+-- Markets
+
+
+
+-- Confirmed 0 NULLs
+SELECT
+	COUNT(*) FILTER(WHERE code is null) as total_null_codes,
+	COUNT(*) FILTER(WHERE description is null) as total_null_description
+FROM markets_staging;
+
+-- Confirmed codes are unique
+SELECT
+	COUNT(*),
+	COUNT(DISTINCT CODE)
+FROM markets_staging;
+
+-- Confirmed 0 duplicates
+SELECT
+	code,
+	description
+FROM markets_staging
+GROUP BY 1,2
+HAVING COUNT(*) > 1;
+
+-- Identified code length
+SELECT
+	MIN(LENGTH(code)) as min,
+	MAX(LENGTH(code)) as max
+FROM markets_staging;
+
+-- Identified code as 5 digit pattern
+SELECT *
+FROM markets_staging
+WHERE code not similar to '\d{5}';
+
+-- Added columns to normalize data
+ALTER TABLE markets_staging
+ADD COLUMN city text,
+ADD COLUMN region text;
+
+-- Split description column into city and region
+UPDATE markets_staging
+SET
+	city = split_part(description,',',1),
+	region = split_part(description,', ',2);
+
+-- Updated DE to Deleware, no available joins
+SET region = 
+	CASE
+		WHEN region = 'DE' THEN 'Deleware'
+		else region
+		end;
+
+-- Updated all state abbreviations to full state names
+UPDATE markets_staging m
+SET region =
+	CASE
+		WHEN region SIMILAR TO '[A-Z]{2}' THEN f.dest_state_name
+		ELSE m.region
+		END
+FROM flights_staging f
+WHERE m.region = f.dest_state;
+
+-- Created table for clean data
+CREATE TABLE markets(
+	code CHAR(5) primary key,
+	city VARCHAR(50),
+	region VARCHAR(75)
+);
+
+-- Updated new table with clean data
+INSERT INTO markets(code,city,region)
+SELECT
+	code,
+	city,
+	region
+FROM markets_staging;
+
+-- Dropped staging table
+DROP TABLE IF EXISTS markets_staging;
+
+
+
+
+
+
+
 
 
