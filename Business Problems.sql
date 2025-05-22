@@ -1,72 +1,66 @@
--- Business Problems
+-- Business Questions
 
--- 1. Which airlines demonstrated the highest operational efficiency in 2015, and how did their on-time performance compare across quarters throughout the year?  
+-- 1. Which airlines demonstrated the highest operational efficiency?
 
 -- Finds total on time or early flights per airline in each quarter
-with on_time_performance as (
-	select
-		case
-			when f.month in (1,2,3) then 'Q1'
-			when f.month in (4,5,6) then 'Q2'
-			when f.month in (7,8,9) then 'Q3'
-			when f.month in (10,11,12) then 'Q4'
-			end as quarter,
-		a.airline_name,
-		count(*) as total_flights,
-		count(*) filter(where f.arrival_time - f.scheduled_arrival <= interval '0 minutes') as not_delayed
-	from flights f
-	inner join airline a
-	on f.airline_code = a.iata_code
-	group by 1,2
+WITH on_time_performance AS (
+	SELECT
+		f.flight_month,
+		c.carrier_name,
+		COUNT(*) AS total_flights,
+		COUNT(*) FILTER(WHERE f.arr_delay <=0) AS total_not_delayed
+	FROM flights f
+	INNER JOIN carriers c ON f.airline_code = c.code
+	GROUP BY 1,2
 ),
--- Finds on time % and ranks each airline accordingly per quarter
-ranked as(
-	select
-		quarter,
-		airline_name,
-		not_delayed * 1.0 / total_flights * 100 as on_time_pct,
-		rank() over(partition by quarter order by not_delayed * 1.0 / total_flights * 100 desc) as rank
-	from on_time_performance
-	order by quarter, rank asc
+-- Finds on time % and ranks each airline accordingly per month
+	ranked AS(
+		SELECT
+			flight_month,
+			carrier_name,
+			total_not_delayed * 1.0 / total_flights * 100 AS on_time_pct,
+			RANK() OVER(PARTITION BY flight_month ORDER BY total_not_delayed * 1.0 / total_flights * 100 DESC) AS ranked
+		FROM on_time_performance
+		ORDER BY flight_month, ranked ASC
 )
--- Returns the best on time performing airline in each quarter
-select *
-from ranked
-where rank = 1;
+-- Returns the best on time performing airline in each month
+SELECT *
+FROM ranked
+WHERE ranked = 1;
 
--- Answer:
--- Alaska Airlines had the best on time performance in Q1. Delta Airlines led on time performance for the remainder of the year.
+-- Answer: Endeavor Air Inc. had the best on time performance in all 3 months for Q4.
 
 -- 2. How much do arrival and departure delays vary across different airports compared to the national average?
 
-with airport_stddev as(
-	select
-		a2.airport_name as origin_airport,
-		stddev(f.departure_delay) as stddev_departure_delay_per_airport,
-		a.airport_name as destination_airport,
-		stddev(f.arrival_delay) as stddev_arrival_delay_per_airport
-	from flights f
-	inner join airport a2
-	on f.origin_airport = a2.iata_code
-	inner join airport a 
-	on f.destination_airport = a.iata_code
-	group by 1,3
-),
-national_stddev as(
-	select
-		stddev(departure_delay) as natl_stddev_departure_delay,
-		avg(arrival_delay) as natl_stddev_arrival_delay
-	from flights
-)
-select 
+-- Finds standard deviation for departure and arrival delays by airport
+WITH airport_stddev AS (
+		SELECT
+			a2.airport_name AS origin_airport,
+			STDDEV(f.dep_delay_minutes) AS stddev_dep_delay_per_airport,
+			a.airport_name AS dest_airport,
+			STDDEV(f.arr_delay_minutes) AS stddev_arrival_delay_per_airport
+		FROM flights f
+			INNER JOIN airports a2 ON f.origin_airport_id = a2.code
+			INNER JOIN airports a ON f.dest_airport_id = a.code
+		GROUP BY 1, 3
+	),
+	national_stddev AS (
+		SELECT
+			STDDEV(departure_delay) AS natl_stddev_departure_delay,
+			AVG(arrival_delay) AS natl_stddev_arrival_delay
+		FROM
+			flights
+	)
+SELECT
 	ad.origin_airport,
 	ad.stddev_departure_delay_per_airport,
 	nd.natl_stddev_departure_delay,
 	ad.destination_airport,
 	ad.stddev_arrival_delay_per_airport,
 	nd.natl_stddev_arrival_delay
-from airport_stddev ad
-cross join national_stddev nd;
+FROM
+	airport_stddev ad
+	CROSS JOIN national_stddev nd;
 
 -- 3. How much cumulative delay time is each airline responsible for, and what portion is due to controllable vs. uncontrollable reasons (e.g., airline vs. weather)?  
 
