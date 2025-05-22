@@ -156,8 +156,7 @@ LIMIT 5;
 
 -- 7. What are the key drivers of flight cancellations across the industry?
 
-SELECT distinct cancellation_code from flights;
-
+-- Counts cancellations across categories
 WITH cancellations_categorized AS(
 	SELECT
 		c.description,
@@ -167,119 +166,93 @@ WITH cancellations_categorized AS(
 	GROUP BY 1
 	ORDER BY 2 DESC
 )
+-- Calculates percent of total
 SELECT
 	*,
 	ROUND((total_cancelled * 1 / SUM(total_cancelled) over() * 100),2) AS pct
 FROM cancellations_categorized;
 
-/*
-Answer: Weather is the leading cause of flight cancellations, accounting for 77% of cancellations.
-Carrier related cancellations account for 14%, while delays attributed to national air systems represent 8%.
-Security related cancellations are minimal, with just 0.02% of total.
-*/
+-- Answer: Weather - 77%, Carrier - 14%, National Air System - 8%, Security - 0.02%
 
--- 9. Which airports consistently experience high weather-related delays? 
+-- 8. Which airports experience high weather-related delays for departures? 
 
-select
+SELECT
 	a.airport_name,
-	sum(f.weather_delay) as total_weather_delay
-from flights f
-left join airport a
-on f.origin_airport = a.iata_code
-where a.airport_name is not null
-group by airport_name
-order by 2 desc
-limit 5;
+	SUM(f.weather_delay) AS total_weather_delay
+FROM
+	flights f
+	INNER JOIN airports a ON f.origin_airport_id = a.code
+GROUP BY
+	airport_name
+HAVING
+	SUM(f.weather_delay) IS NOT NULL
+ORDER BY
+	2 DESC
+LIMIT 5;
 
--- Answer: O'Hare, Hartsfield-Jackson, Dallas-Forth Worth, Orlando Intl, JFK
+-- Answer: Dallas/Fort Worth, O'Hare, Denver, San Diego, Charlotte Douglas are the top 5 airports that experience weather delays.
 
--- 10. What percentage of flights experienced a departure delay in 2015? Among those, what was the average delay time (in minutes)?  
+-- 9. What percentage of flights experienced a departure delay in 2015? Among those, what was the average delay time?
 
-select
-100 * (count(*) filter(where departure_delay > 0))::decimal/ count(*) as delayed_flight_pct,
-avg(departure_delay) filter(where departure_delay > 0) as avg_delay
-from flights;
+SELECT
+	COUNT(*) FILTER (WHERE dep_del15 = 'true') * 1.0 / COUNT(*) * 100 AS pct_delayed,
+	AVG(dep_delay_minutes) FILTER (WHERE dep_delay_minutes >= 15) AS avg_dep_delay
+FROM flights;
 
--- Answer: 36% of flights experienced a delay for an average of 32 minutes.
+-- Answer: 16.4% of flights were delayed for an average of 1 hour and 6 minutes.
 
--- 11. How many flights were cancelled in 2015? What % were due to weather vs. the airline?  
+-- 10. Which airlines seem are in the top and bottom 33% for on-time departure?
 
-select
-	c.description,
-	count(*) as total_cancellations_per,
-	sum(count(*)) over() as total_cancellations_2015,
-	(count(*) / sum(count(*)) over()) * 100 as pct_per
-from flights f 
-left join cancellation_codes c
-on f.cancellation_reason = c.code
-where f.cancelled = True
-group by 1
-order by 2;
+-- Splits airlines into thirds based on average departure delay
+WITH thirds AS(
+	SELECT
+		 c.carrier_name,
+		 AVG(dep_delay_minutes) AS avg_dep_delay,
+		 NTILE(3) OVER(ORDER BY AVG(dep_delay_minutes) ASC) AS delay_group
+	FROM flights f 
+	INNER JOIN carriers c ON f.airline_code = c.code
+	WHERE f.dep_del15 = 'true'
+	GROUP BY 1
+	)
+-- Retrieves all airlines in the top and bottom third
+SELECT *
+FROM thirds
+WHERE delay_group IN (1,3);
 
-/*
-Answer: 89,884 flights were cancelled in 2015. Weather accounted for 54% of delays,
-followed by airline or carrier related factors which contributed to 28%
-*/
+-- 11. What percentage of flights were delayed, cancelled, or diverted overall and per airline?  
 
--- 12. Which airlines seem to be most and least reliable in terms of on-time departure?  
-
-select
-	a.airline_name,
-	avg(f.departure_delay) as avg_departure_delay
-from flights f 
-left join airline a
-	on f.airline_code = a.iata_code
-where departure_delay > 0
-group by 1
-order by 2 asc;
-
--- Answer: Hawaiian Airlines were the most reliable airline with Frontier being the least.
-
--- 13. What percentage of flights were delayed, cancelled, or diverted overall and per airline?  
-
-with categorized as (
-	select
-		a.airline_name,
-		count(*) as total_flights,
-		count(cancelled) filter(where cancelled ='True') as total_cancelled,
-		count(*) filter(where departure_delay > 0) as total_delays,
-		count(*) filter(where diverted = 'True') as total_diverted
-	from flights f
-	inner join airline a
-	on f.airline_code = a.iata_code
-	group by 1
+-- Calculates total flights, cancellations, diverted flights per airline
+WITH airline_stats AS(
+	SELECT
+		c.carrier_name AS airline,
+		COUNT(*) AS total_flights,
+		COUNT(DISTINCT(flight_date,airline_code,origin_airport_id,flight_number,crs_dep_time))
+			FILTER (WHERE dep_del15 ='true' OR arr_del15 ='true') as total_delayed,
+		COUNT(*) FILTER (WHERE cancelled ='true') as total_cancelled,
+		COUNT(*) FILTER (WHERE diverted ='true') as total_diverted
+	FROM flights f
+	INNER JOIN carriers c ON f.airline_code = c.code
+	GROUP BY 1
 )
-select
-	airline_name,
-	total_cancelled * 1.0 / total_flights * 100 as pct_cancelled,
-	total_delays * 1.0 / total_flights * 100 as pct_delayed,
-	total_diverted * 1.0 / total_flights * 100 as pct_diverted
-from categorized;
+-- Calculates % for each category
+SELECT
+	airline,
+	total_flights,
+	total_delayed * 1.0 / total_flights * 100 AS pct_delayed,
+	total_cancelled * 1.0 / total_flights * 100 AS pct_cancelled,
+	total_diverted * 1.0 / total_flights * 100 AS pct_delayed
+FROM airline_stats
+ORDER BY 2 DESC;
 
--- 14. Which flight routes have the highest frequency of weather-related delays?  
+-- 12. When is the least and most busiest time to fly for a passenger?
 
-select
-	a.city || ', ' || a.state || ' - ' || a2.city || ', ' || a2.state as route,
-	sum(coalesce(f.weather_delay,0)) as total_weather_delay
-from flights f
-inner join airport a
-on f.origin_airport = a.iata_code
-inner join airport a2
-on f.destination_airport = a2.iata_code
-group by 1
-order by 2 desc
-limit 3;
-
--- Answer: CHI-NY, ATL-NY, CHI- LA
-
--- 15. Is there a correlation between flight distance and arrival delay?  
+-- 13. Is there a correlation between flight distance and arrival delay?  
 
 SELECT CORR(distance, arr_delay_minutes)
 FROM flights
 WHERE arr_delay_minutes IS NOT nuLL;
 
 -- Answer: Result of -0.01 indicates virtually no correlation between flight distance and arrival delay.
-
 
 
 
