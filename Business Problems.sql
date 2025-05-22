@@ -69,153 +69,113 @@ FROM airport_stats a
 JOIN airports ap ON a.airport_id = ap.code
 CROSS JOIN national_avg n;
 
--- 3. How much cumulative delay time is each airline responsible for, and what portion is due to controllable vs. uncontrollable reasons (e.g., airline vs. weather)?  
+-- 3. How much cumulative delay time is each airline responsible for, and what portion is due to controllable vs. uncontrollable reasons?
 
--- Assumed for controllable: air system delay, airline delay
--- Assumed for uncontrollable: security delay, weather delay, late aircraft delay
+-- Controllable: carrier delay, national air system
+-- Uncontrollable: weather, late aircraft, security
+-- Delay types can be categorized differently depending on context
 
-with delayed_categorized as(
-	select
-		a.airline_name,
-		sum(f.air_system_delay + f.airline_delay) as controllable,
-		sum(f.security_delay + f.weather_delay + f.late_aircraft_delay) as uncontrollable
-	from flights f
-	inner join airline a
-	on f.airline_code = a.iata_code
-	group by 1
+-- Adds delay time per line and categorizes accordingly
+WITH delay_categorized AS(
+	SELECT
+		c.carrier_name AS airline,
+		SUM(f.carrier_delay + f.nas_delay) AS controllable,
+		SUM(f.weather_delay + f.late_aircraft_delay + f.security_delay) AS uncontrollable,
+		SUM(f.carrier_delay + f.nas_delay + f.weather_delay + f.late_aircraft_delay + f.security_delay) AS total_delay_per
+	FROM flights f
+	INNER JOIN carriers c ON f.airline_code = c.code
+	GROUP BY 1
 )
-select
-	*,
-	(controllable * 1 / sum(controllable + uncontrollable)) * 100 as controllable_pct,
-	(uncontrollable * 1 / sum(controllable + uncontrollable)) * 100 as uncontrollable_pct
-from delayed_categorized
-group by 1,2,3;
+-- Calculates % per category and cumulatively 
+SELECT
+	airline,
+	controllable * 1.0/total_delay_per * 100 AS controllable_pct,
+	uncontrollable * 1.0 /total_delay_per * 100 AS uncontrollable_pct,
+	total_delay_per/SUM(total_delay_per) OVER() * 100 AS airline_pct_of_total
+FROM delay_categorized
+ORDER BY 4 DESC;
 
 -- 4. How do delay patterns change with longer flights vs shorter flights?
 
--- Categorizes flight times into short, medium, and long flights
-with flight_categories as(
-	select
-		case
-			when air_time <= 120 then 'Short'
-			when air_time between 121 and 240 then 'Medium'
-			else 'Long'
-		end as flight_type,
-	arrival_delay
-	from flights
-)
--- Finds avg delay, standard deviation, and percentage of delayed flights per flight type
-select
-	flight_type,
-	count(*) as total_flights,
-	avg(arrival_delay) as avg_arrival_delay,
-	stddev(arrival_delay) as delay_stddev,
-	100.0 * sum(case when arrival_delay > 0 then 1 else 0 end)/ count(*) as pct_delayed
-from flight_categories
-group by 1
-order by 2 desc;
+-- Groups flight times by category and calculates average delays per category
+SELECT
+	CASE
+		WHEN crs_elapsed_time <= 120 THEN 'Short'
+		WHEN crs_elapsed_time BETWEEN 121 AND 240 THEN 'Medium'
+		ELSE 'Long'
+		END AS duration_category,
+		COUNT(*) AS flight_count,
+		AVG(dep_delay) AS avg_dep_delay,
+		AVG(arr_delay) AS avg_arr_delay
+FROM flights
+GROUP BY 1
+ORDER BY 1 DESC;
 
 /*
-Answer:
-The average delays for these flight groups range from approximately 2 to 5 minutes. However, the significantly
-higher standard deviation indicates considerable variability in the delays, suggesting the presence of numerous
-instances with substantial outliers and longer delays. These outliers likely result from factors
-such as severe weather conditions or exceptional circumstances that cause significant delays on certain flights.
- */
-
--- 5. How does the % of delayed flights vary throughout the year? What about for flights leaving from Boston (BOS) specifically?  
-
--- Finds total and delayed flights for Boston and all other airports
-with monthly_flights as (
-	select
-		month,
-		count(*) filter(where origin_airport != 'BOS') as total_other,
-		count(*) filter(where origin_airport = 'BOS') as boston_total,
-		count(*) filter (where departure_delay>0 and origin_airport != 'BOS') as all_other_delays,
-		count(*) filter(where departure_delay>0 and origin_airport = 'BOS') as boston_delays
-	from flights
-	group by month
-),
--- Calculates the % of delayed flights for Boston and all other airports
-pct_delayed as(
-	select
-		month,
-		-- Dataset shows 0 flights from Boston in October, replacing 0 with NULL to avoid division by zero error
-		(nullif(boston_delays,0) * 1.0 / nullif(boston_total,0)) * 100 as pct_delayed_boston,
-		(all_other_delays * 1.0 / total_other) * 100 as pct_delayed_other
-	from monthly_flights
-)
--- Finds the variance of delayed flights from Boston vs all other airports
-select
-	*,
-	pct_delayed_boston - pct_delayed_other as boston_vs_all_else
-from pct_delayed;
-
-/*
-Answer:
-Boston did not have any delayed flights in October. Overall, Boston exhibited better on-time performance
-compared to other airports for most months, except for February, August, and September. Notably,
-February saw the highest proportion of delays for flights departing from Boston.
+Answer: Medium-duration flights have the highest average departure delay at approximately 9 minutes,
+followed by long flights at 8.7 minutes and short flights at 7.5 minutes. The variance in delays is relatively small.
+Arrival delays also show minimal variation, with average delays across categories differing by only about 1.5 minutes.
 */
 
--- 6. Which routes have the highest flight volume, and what are the top five based on total flights?
 
-select
+-- 5. Which routes have the highest flight volume, and what are the top five based on total flights?
+select * from airports;
+SELECT
 	-- combines origin and destination locations to assign as route
-	a.city || ', ' || a.state || ' - ' || a2.city || ', ' || a2.state as route, 
-	count(*) as total_flights
-from flights f
-inner join airport a
-on f.origin_airport = a.iata_code
-inner join airport a2 
-on f.destination_airport = a2.iata_code
-group by 1
-order by 2 desc
-limit 5;
+	a.city || ', ' || a.region || ' - ' || a2.city || ', ' || a2.region AS route,
+	COUNT(*) AS total_flights
+FROM
+	flights f
+	INNER JOIN airports a ON f.origin_airport_id = a.code
+	INNER JOIN airports a2 ON f.dest_airport_id = a2.code
+GROUP BY 1
+ORDER BY 2 DESC
+LIMIT 5;
 
--- Answer: SF-LA, LA-SF, NY-CHI, CHI-NY, BOS-NY 
+-- Answer: CHI-NY, NY-CHI, NY-BOS, BOS-NY, LA-SF
 
--- 7. Which five cities serve as the most popular hubs based on flight frequency?
+-- 6. Which five cities serve as the most popular hubs based on flight frequency?
 
-select
+SELECT
 	city,
-	count(*)
-from(
-	select a.city
-	from flights f
-	inner join airport a
-	on f.origin_airport = a.iata_code
-	union all 
-	select a2.city
-	from flights f
-	inner join airport a2
-	on f.destination_airport = a2.iata_code
+	COUNT(*) AS total_flights
+FROM(
+		SELECT a.city
+		FROM flights f
+		INNER JOIN airports a ON f.origin_airport_id = a.code
+		UNION ALL
+		SELECT a2.city
+		FROM flights f
+		INNER JOIN airports a2 ON f.dest_airport_id = a2.code
+	)
+GROUP BY 1
+ORDER BY 2 DESC
+LIMIT 5;
+
+-- Answer: Chicago, Atlanta, Dallas-Fort Worth, Denver, New York
+
+-- 7. What are the key drivers of flight cancellations across the industry?
+
+SELECT distinct cancellation_code from flights;
+
+WITH cancellations_categorized AS(
+	SELECT
+		c.description,
+		COUNT(f.cancelled) FILTER(WHERE cancelled = 'true') AS total_cancelled
+	FROM flights f
+	INNER JOIN cancel_codes c ON f.cancellation_code = c.code
+	GROUP BY 1
+	ORDER BY 2 DESC
 )
-group by 1
-order by 2 desc
-limit 5;
-
--- Answer: Chicago, Atlanta, Dallas-Fort Worth, Denver
-
--- 8. What are the key drivers of flight cancellations across the industry?
-
-select
-	c.description,
-	count(f.cancelled) as total_cancelled_per,
-	100 * count(f.cancelled) / sum(count(f.cancelled)) over() as pct_of_total
-from flights f
-inner join cancellation_codes c
-on f.cancellation_reason = c.code
-inner join airline a
-on f.airline_code = a.iata_code
-where f.cancelled = 'True'
-group by 1
-order by 3 desc;
+SELECT
+	*,
+	ROUND((total_cancelled * 1 / SUM(total_cancelled) over() * 100),2) AS pct
+FROM cancellations_categorized;
 
 /*
-Answer:
-Weather is the leading cause of flight cancellations, followed by issues related to the
-airline or carrier, the national air system, with security concerns contributing the least.
+Answer: Weather is the leading cause of flight cancellations, accounting for 77% of cancellations.
+Carrier related cancellations account for 14%, while delays attributed to national air systems represent 8%.
+Security related cancellations are minimal, with just 0.02% of total.
 */
 
 -- 9. Which airports consistently experience high weather-related delays? 
