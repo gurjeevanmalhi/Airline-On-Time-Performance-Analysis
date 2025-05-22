@@ -28,39 +28,46 @@ SELECT *
 FROM ranked
 WHERE ranked = 1;
 
--- Answer: Endeavor Air Inc. had the best on time performance in all 3 months for Q4.
+-- Answer: Endeavor Air Inc. had the best on time performance % in all 3 months for Q4.
 
 -- 2. How much do arrival and departure delays vary across different airports compared to the national average?
 
--- Finds standard deviation for departure and arrival delays by airport
-WITH airport_stddev AS (
+-- Calculates standard deviation for delays nationally
+WITH national_avg AS(
+	SELECT
+		stddev(dep_delay) as natl_stddev_dep_delay,
+		stddev(arr_delay) as natl_stddev_arr_delay
+	FROM flights
+),
+-- Calculates standard deviation per airport
+airport_stats AS(
+	SELECT
+		airport_id,
+		STDDEV(dep_delay) AS stddev_dep_delay,
+		STDDEV(arr_delay) AS stddev_arr_delay
+	FROM(
 		SELECT
-			a2.airport_name AS origin_airport,
-			STDDEV(f.dep_delay_minutes) AS stddev_dep_delay_per_airport,
-			a.airport_name AS dest_airport,
-			STDDEV(f.arr_delay_minutes) AS stddev_arrival_delay_per_airport
-		FROM flights f
-			INNER JOIN airports a2 ON f.origin_airport_id = a2.code
-			INNER JOIN airports a ON f.dest_airport_id = a.code
-		GROUP BY 1, 3
-	),
-	national_stddev AS (
+			origin_airport_id AS airport_id,
+			dep_delay,
+			NULL::NUMERIC AS arr_delay
+		FROM flights
+		UNION ALL
 		SELECT
-			STDDEV(departure_delay) AS natl_stddev_departure_delay,
-			AVG(arrival_delay) AS natl_stddev_arrival_delay
-		FROM
-			flights
-	)
+			dest_airport_id AS airport_id,
+			NULL::NUMERIC AS dep_delay,
+			arr_delay
+		FROM flights
+		) AS combined
+	GROUP BY airport_id
+)
+-- Finds variabilty for each airport between national average
 SELECT
-	ad.origin_airport,
-	ad.stddev_departure_delay_per_airport,
-	nd.natl_stddev_departure_delay,
-	ad.destination_airport,
-	ad.stddev_arrival_delay_per_airport,
-	nd.natl_stddev_arrival_delay
-FROM
-	airport_stddev ad
-	CROSS JOIN national_stddev nd;
+	ap.airport_name,
+	a.stddev_dep_delay - n.natl_stddev_dep_delay AS dep_diff_from_avg,
+	a.stddev_arr_delay - n.natl_stddev_arr_delay AS arr_diff_from_avg
+FROM airport_stats a
+JOIN airports ap ON a.airport_id = ap.code
+CROSS JOIN national_avg n;
 
 -- 3. How much cumulative delay time is each airline responsible for, and what portion is due to controllable vs. uncontrollable reasons (e.g., airline vs. weather)?  
 
@@ -307,11 +314,11 @@ limit 3;
 
 -- 15. Is there a correlation between flight distance and arrival delay?  
 
-select corr(distance, arrival_delay)
-from flights
-where arrival_delay is not null;
+SELECT CORR(distance, arr_delay_minutes)
+FROM flights
+WHERE arr_delay_minutes IS NOT nuLL;
 
--- Answer: Result of -0.02 indicates virtually no correlation between flight distance and arrival delay.
+-- Answer: Result of -0.01 indicates virtually no correlation between flight distance and arrival delay.
 
 
 
