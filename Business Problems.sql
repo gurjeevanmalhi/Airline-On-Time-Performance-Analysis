@@ -1,5 +1,9 @@
 -- Business Questions
 
+-- Key Functions Used: STDDEV(),CORR(),NTILE(),RANK(),DENSE_RANK(),EXTRACT() UNION ALL, Windows Functions, CROSS JOIN
+
+--------------------------------------------------------------------------------------------------------------------------
+
 -- 1. Which airlines demonstrated the highest operational efficiency?
 
 -- Finds total on time or early flights per airline in each quarter
@@ -29,6 +33,8 @@ FROM ranked
 WHERE ranked = 1;
 
 -- Answer: Endeavor Air Inc. had the best on time performance % in all 3 months for Q4.
+
+--------------------------------------------------------------------------------------------------------------------------
 
 -- 2. How much do arrival and departure delays vary across different airports compared to the national average?
 
@@ -69,6 +75,8 @@ FROM airport_stats a
 JOIN airports ap ON a.airport_id = ap.code
 CROSS JOIN national_avg n;
 
+--------------------------------------------------------------------------------------------------------------------------
+
 -- 3. How much cumulative delay time is each airline responsible for, and what portion is due to controllable vs. uncontrollable reasons?
 
 -- Controllable: carrier delay, national air system
@@ -95,6 +103,8 @@ SELECT
 FROM delay_categorized
 ORDER BY 4 DESC;
 
+--------------------------------------------------------------------------------------------------------------------------
+
 -- 4. How do delay patterns change with longer flights vs shorter flights?
 
 -- Groups flight times by category and calculates average delays per category
@@ -112,11 +122,14 @@ GROUP BY 1
 ORDER BY 1 DESC;
 
 /*
+
 Answer: Medium-duration flights have the highest average departure delay at approximately 9 minutes,
 followed by long flights at 8.7 minutes and short flights at 7.5 minutes. The variance in delays is relatively small.
 Arrival delays also show minimal variation, with average delays across categories differing by only about 1.5 minutes.
+
 */
 
+--------------------------------------------------------------------------------------------------------------------------
 
 -- 5. Which routes have the highest flight volume, and what are the top five based on total flights?
 select * from airports;
@@ -133,6 +146,8 @@ ORDER BY 2 DESC
 LIMIT 5;
 
 -- Answer: CHI-NY, NY-CHI, NY-BOS, BOS-NY, LA-SF
+
+--------------------------------------------------------------------------------------------------------------------------
 
 -- 6. Which five cities serve as the most popular hubs based on flight frequency?
 
@@ -154,6 +169,8 @@ LIMIT 5;
 
 -- Answer: Chicago, Atlanta, Dallas-Fort Worth, Denver, New York
 
+--------------------------------------------------------------------------------------------------------------------------
+
 -- 7. What are the key drivers of flight cancellations across the industry?
 
 -- Counts cancellations across categories
@@ -174,6 +191,8 @@ FROM cancellations_categorized;
 
 -- Answer: Weather - 77%, Carrier - 14%, National Air System - 8%, Security - 0.02%
 
+--------------------------------------------------------------------------------------------------------------------------
+
 -- 8. Which airports experience high weather-related delays for departures? 
 
 SELECT
@@ -192,6 +211,8 @@ LIMIT 5;
 
 -- Answer: Dallas/Fort Worth, O'Hare, Denver, San Diego, Charlotte Douglas are the top 5 airports that experience weather delays.
 
+--------------------------------------------------------------------------------------------------------------------------
+
 -- 9. What percentage of flights experienced a departure delay in 2015? Among those, what was the average delay time?
 
 SELECT
@@ -200,6 +221,8 @@ SELECT
 FROM flights;
 
 -- Answer: 16.4% of flights were delayed for an average of 1 hour and 6 minutes.
+
+--------------------------------------------------------------------------------------------------------------------------
 
 -- 10. Which airlines seem are in the top and bottom 33% for on-time departure?
 
@@ -219,7 +242,9 @@ SELECT *
 FROM thirds
 WHERE delay_group IN (1,3);
 
--- 11. What percentage of flights were delayed, cancelled, or diverted overall and per airline?  
+--------------------------------------------------------------------------------------------------------------------------
+
+-- 11. What percentage of flights were delayed, cancelled, or diverted overall and per airline?
 
 -- Calculates total flights, cancellations, diverted flights per airline
 WITH airline_stats AS(
@@ -243,6 +268,8 @@ SELECT
 	total_diverted * 1.0 / total_flights * 100 AS pct_delayed
 FROM airline_stats
 ORDER BY 2 DESC;
+
+--------------------------------------------------------------------------------------------------------------------------
 
 -- 12. When is the least and most busiest time to fly for a passenger?
 WITH flight_hours AS(
@@ -274,6 +301,8 @@ FROM least_busiest;
 
 -- Answer: Least busiest time to fly is Wednesday at 4 am. Busiest time is Monday at 7am.
 
+--------------------------------------------------------------------------------------------------------------------------
+
 -- 13. Is there a correlation between flight distance and arrival delay?  
 
 SELECT CORR(distance, arr_delay_minutes)
@@ -281,6 +310,8 @@ FROM flights
 WHERE arr_delay_minutes IS NOT NULL;
 
 -- Answer: Result of -0.01 indicates virtually no correlation between flight distance and arrival delay.
+
+--------------------------------------------------------------------------------------------------------------------------
 
 -- 14. Which US airports had the highest flight volume month-over-month, and how did their ranks change throughout the year?
 
@@ -308,6 +339,8 @@ WHERE ranking = 1;
 
 -- Answer: Hartsfield-Jackson Atlanta International had the highest number of flights in each month.
 
+--------------------------------------------------------------------------------------------------------------------------
+
 -- 15. What is the average departure and arrival delay among all flights?
 
 SELECT
@@ -316,5 +349,4 @@ SELECT
 FROM flights;
 
 -- Answer: 67 minutes for departures and 66 minutes for arrivals.
-	
 
