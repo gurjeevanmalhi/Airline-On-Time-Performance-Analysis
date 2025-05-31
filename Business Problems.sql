@@ -14,14 +14,14 @@ WITH on_time_performance AS (
 	GROUP BY 1,2
 ),
 -- Finds on time % and ranks each airline accordingly per month
-	ranked AS(
-		SELECT
-			flight_month,
-			carrier_name,
-			total_not_delayed * 1.0 / total_flights * 100 AS on_time_pct,
-			RANK() OVER(PARTITION BY flight_month ORDER BY total_not_delayed * 1.0 / total_flights * 100 DESC) AS ranked
-		FROM on_time_performance
-		ORDER BY flight_month, ranked ASC
+ranked AS(
+	SELECT
+		flight_month,
+		carrier_name,
+		total_not_delayed * 1.0 / total_flights * 100 AS on_time_pct,
+		RANK() OVER(PARTITION BY flight_month ORDER BY total_not_delayed * 1.0 / total_flights * 100 DESC) AS ranked
+	FROM on_time_performance
+	ORDER BY flight_month, ranked ASC
 )
 -- Returns the best on time performing airline in each month
 SELECT *
@@ -245,14 +245,76 @@ FROM airline_stats
 ORDER BY 2 DESC;
 
 -- 12. When is the least and most busiest time to fly for a passenger?
+WITH flight_hours AS(
+	SELECT
+		day_of_week,
+		EXTRACT(HOUR FROM crs_dep_time) AS dep_hour,
+		COUNT(*) AS total_flights
+	FROM flights
+	GROUP BY 1,2
+	ORDER BY 3 DESC
+),
+busiest AS(
+	SELECT *
+	FROM flight_hours
+	ORDER BY total_flights DESC
+	LIMIT 1
+),
+least_busiest AS(
+	SELECT * 
+	FROM flight_hours
+	ORDER BY total_flights ASC
+	LIMIT 1
+)
+SELECT *
+FROM busiest
+UNION ALL 
+SELECT * 
+FROM least_busiest;
+
+-- Answer: Least busiest time to fly is Wednesday at 4 am. Busiest time is Monday at 7am.
 
 -- 13. Is there a correlation between flight distance and arrival delay?  
 
 SELECT CORR(distance, arr_delay_minutes)
 FROM flights
-WHERE arr_delay_minutes IS NOT nuLL;
+WHERE arr_delay_minutes IS NOT NULL;
 
 -- Answer: Result of -0.01 indicates virtually no correlation between flight distance and arrival delay.
 
+-- 14. Which US airports had the highest flight volume month-over-month, and how did their ranks change throughout the year?
 
+-- Calculates flight volume per airport for each month
+WITH flight_volume AS(
+	SELECT
+	a.airport_name,
+	f.flight_month,
+	COUNT(*) AS total_flights
+FROM flights f
+INNER JOIN airports a ON f.origin_airport_id = a.code
+GROUP BY 1, 2
+),
+-- Ranks each airport per month by the number of flights
+ranked AS(
+	SELECT
+		*,
+		DENSE_RANK() OVER(PARTITION BY flight_month ORDER BY total_flights DESC) AS ranking
+	from flight_volume
+)
+-- Finds the airport with the highest number of flights in each airport
+SELECT *
+FROM ranked
+WHERE ranking = 1;
+
+-- Answer: Hartsfield-Jackson Atlanta International had the highest number of flights in each month.
+
+-- 15. What is the average departure and arrival delay among all flights?
+
+SELECT
+	round(AVG(dep_delay_minutes) FILTER(WHERE dep_del15 = 'true'),2) AS avg_dep_delay,
+	round(AVG(arr_delay_minutes) FILTER(WHERE arr_del15 = 'true'),2) AS avg_arr_delay
+FROM flights;
+
+-- Answer: 67 minutes for departures and 66 minutes for arrivals.
+	
 
