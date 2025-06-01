@@ -1,3 +1,28 @@
+-- Database Design
+
+--------------------------------------------------------------------------------------------------------------------------
+
+-- Key Skills / Functions Used:
+
+-- CREATE TABLE          -- Creating staging and final tables
+-- ALTER TABLE           -- Adding and dropping columns
+-- INSERT INTO           -- Populating clean tables from staging
+-- UPDATE                -- Cleaning and transforming data
+-- SELECT                -- Exploring, validating, and analyzing data
+-- COUNT(DISTINCT)       -- Checking for row counts, NULLs, uniqueness
+-- LENGTH, MIN, MAX      -- Checking column lengths and data ranges
+-- GROUP BY, HAVING      -- Finding duplicates
+-- SIMILAR TO, LIKE      -- Validating data patterns
+-- SUBSTRING, STRPOS     -- Parsing and extracting substrings
+-- SPLIT_PART            -- Splitting strings for transformation
+-- CASE WHEN             -- Conditional data transformation
+-- JOIN (LEFT JOIN)      -- Enriching data via lookups
+-- DROP TABLE            -- Cleaning up staging tables
+-- FILTER (WHERE ...)    -- Conditional aggregation for NULL checks
+-- ORDER BY              -- Sorting for clarity during audits
+
+--------------------------------------------------------------------------------------------------------------------------
+
 -- Created Staging Tables
 
 CREATE TABLE airports_staging(
@@ -89,11 +114,11 @@ CREATE TABLE flights_staging (
   late_aircraft_delay VARCHAR(100)
 );
 
-
+--------------------------------------------------------------------------------------------------------------------------
 
 -- Data Cleaning, Manipulation, and Transformation
 
-
+--------------------------------------------------------------------------------------------------------------------------
 
 -- Airports 
 
@@ -205,11 +230,9 @@ FROM airports_staging;
 -- Dropped staging table with raw data
 DROP TABLE IF EXISTS airports_staging;
 
-
+--------------------------------------------------------------------------------------------------------------------------
 
 -- Carriers
-
-
 
 -- Confirmed codes are unique
 SELECT
@@ -258,10 +281,9 @@ FROM carriers_staging;
 -- Dropped staging table
 DROP TABLE IF EXISTS carriers_staging;
 
+--------------------------------------------------------------------------------------------------------------------------
 
 -- Markets
-
-
 
 -- Confirmed 0 NULLs
 SELECT
@@ -340,10 +362,9 @@ FROM markets_staging;
 -- Dropped staging table
 DROP TABLE IF EXISTS markets_staging;
 
+--------------------------------------------------------------------------------------------------------------------------
 
 -- World Area Codes
-
-
 
 -- Confirmed 0 nulls
 SELECT
@@ -391,11 +412,9 @@ FROM world_areas_staging;
 -- Dropped staging table
 DROP TABLE IF EXISTS world_areas_staging;
 
-
+--------------------------------------------------------------------------------------------------------------------------
 
 -- Cancel Codes
-
-
 
 -- No cleaning or transformation necessary
 SELECT *
@@ -418,9 +437,9 @@ FROM
 -- Dropped staging table
 DROP TABLE IF EXISTS cancel_codes_staging;
 
+--------------------------------------------------------------------------------------------------------------------------
 
 -- Flights
-
 
 -- Dropped columns, data has already been normalized in another table or not needed for analysis
 ALTER TABLE flights_staging
