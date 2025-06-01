@@ -24,6 +24,7 @@ This project analyzes over 1.7M flights in the US to uncover insights into on-ti
 - Business Problems: SQL queries answering key business questions
 - Database Design: scripts for data cleaning, tranformation, and schema creation
 - Dashboard: Power BI file with interactive dashboard
+- Dashboard PDF: PDF version of dashboard
 
 ## Dataset
 
