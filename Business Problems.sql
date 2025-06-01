@@ -1,6 +1,19 @@
 -- Business Questions
 
--- Key Functions Used: STDDEV(),CORR(),NTILE(),RANK(),DENSE_RANK(),EXTRACT() UNION ALL, Windows Functions, CROSS JOIN
+--------------------------------------------------------------------------------------------------------------------------
+
+-- Key SQL Functions & Concepts Used:
+-- 1. STDDEV()        -- Measures delay variability
+-- 2. CORR()          -- Finds correlation (e.g., distance vs delay)
+-- 3. NTILE()         -- Divides data into equal groups (e.g., top/bottom thirds)
+-- 4. RANK()          -- Ranks rows with possible gaps
+-- 5. DENSE_RANK()    -- Ranks rows without gaps
+-- 6. EXTRACT()       -- Extracts parts of date/time (e.g., hour)
+-- 7. UNION ALL       -- Combines rows from multiple queries (including duplicates)
+-- 8. CROSS JOIN      -- Joins every row of one table with every row of another
+-- 9. FILTER()        -- Conditional aggregation
+--10. CASE WHEN       -- Categorizes values
+--11. Window Functions -- Used for ranking and NTILE partitioning
 
 --------------------------------------------------------------------------------------------------------------------------
 
@@ -349,4 +362,5 @@ SELECT
 FROM flights;
 
 -- Answer: 67 minutes for departures and 66 minutes for arrivals.
+	
 
