@@ -1,5 +1,7 @@
 # Airline On-Time Performance Analysis
 
+---
+
 ## Project Background
 
 The U.S. Department of Transportation (DOT) oversees the performance and reliability of commercial airline operations across the country. As part of its mission to improve transportation efficiency and consumer satisfaction, the DOT collects and analyzes flight performance data from domestic airlines to monitor trends and identify areas for improvement.
@@ -24,6 +26,8 @@ Targeted SQL queries regarding various business questions can be found [here](Bu
 
 An interactive Power BI dashboard used to report and explore performance trends can be found [here](Dashboard.pbix).
 
+---
+
 ## Data Structure & Initial Checks
 
 The Department of Transportation’s main database structure for this analysis consists of 6 tables: flights, carriers, airports, cancel codes, markets, and world areas, with a total row count of approximately 1.8 million records. A description of each table is as follows:
@@ -41,6 +45,8 @@ The Department of Transportation’s main database structure for this analysis c
 - World Areas: contains world area code and area name
 
 ![Entity Relationship Diagram](Entity%20Relationship%20Diagram.png)
+
+---
 
 ## Executive Summary
 
@@ -79,6 +85,8 @@ This analysis of U.S. commercial flight performance revealed key operational ine
 
 - Monday at 7AM is the busiest flying time, while Wednesday at 4AM is the least busy. These patterns suggest opportunities for load balancing and passenger incentive strategies.
 
+---
+
 ## Recommendations
 
 Based on the insights and findings above, we would recommend the Operations and Strategy teams to consider the following:
@@ -98,6 +106,18 @@ Recommendation: Collaborate with meteorological services for more accurate forec
 - Chicago, Atlanta, and Dallas serve as top flight hubs with high volume.
 Recommendation: Prioritize infrastructure investment and staffing strategies in these cities to support efficient hub operations and reduce congestion.
 
+--- 
+
+## Assumptions and Caveats:
+
+Throughout the analysis, the following assumptions were made:
+
+- Controllable delays: Factors such as carrier-related delays and national air system issues.
+- Uncontrollable delays: Causes including weather conditions, late aircraft arrivals, and security-related interruptions.
+- The classification of delay types may vary depending on the specific context or analysis framework.
+
+---
+
 ## Technologies and Key Skills Used
 
 - PostgreSQL
@@ -108,6 +128,8 @@ Recommendation: Prioritize infrastructure investment and staffing strategies in 
 - Data Cleaning & Quality
 - Data Modeling
 - Data Visualization
+
+---
 
 ## Dataset
 
