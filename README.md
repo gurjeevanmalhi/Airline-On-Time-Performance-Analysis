@@ -96,4 +96,13 @@ Recommendation: Prioritize infrastructure investment and staffing strategies in 
 
 - The dataset is sourced directly from the Department of Transportation and can be found [here](https://www.transtats.bts.gov/Fields.asp?gnoyr_VQ=FGJ).
 
+## Technologies and Key Skills Used
 
+- PostgreSQL
+- Power BI
+- Power Query
+- DAX
+- Excel
+- Data Cleaning & Quality
+- Data Modeling
+- Data Visualization
