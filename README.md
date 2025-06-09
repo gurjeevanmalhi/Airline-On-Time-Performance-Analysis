@@ -18,6 +18,12 @@ Insights and recommendations are provided on the following key areas:
 
 - Flight Delay Trends & Patterns: What are the most common causes of flight delays? Are there temporal or geographic patterns in delay occurrences?
 
+The SQL queries used to inspect and clean the data for this analysis can be found [here](Database%Design.sql).
+
+Targeted SQL queries regarding various business questions can be found [here](Business%20Problems.sql).
+
+An interactive Power BI dashboard used to report and explore performance trends can be found [here](Dashboard.pbix).
+
 ## Data Structure & Initial Checks
 
 The Department of Transportation’s main database structure for this analysis consists of 6 tables: flights, carriers, airports, cancel codes, markets, and world areas, with a total row count of approximately 1.8 million records. A description of each table is as follows:
