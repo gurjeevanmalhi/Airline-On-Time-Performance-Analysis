@@ -92,10 +92,6 @@ Recommendation: Collaborate with meteorological services for more accurate forec
 - Chicago, Atlanta, and Dallas serve as top flight hubs with high volume.
 Recommendation: Prioritize infrastructure investment and staffing strategies in these cities to support efficient hub operations and reduce congestion.
 
-## Dataset
-
-- The dataset is sourced directly from the Department of Transportation and can be found [here](https://www.transtats.bts.gov/Fields.asp?gnoyr_VQ=FGJ).
-
 ## Technologies and Key Skills Used
 
 - PostgreSQL
@@ -106,3 +102,7 @@ Recommendation: Prioritize infrastructure investment and staffing strategies in 
 - Data Cleaning & Quality
 - Data Modeling
 - Data Visualization
+
+## Dataset
+
+- The dataset is sourced directly from the Department of Transportation and can be found [here](https://www.transtats.bts.gov/Fields.asp?gnoyr_VQ=FGJ).
